@@ -3,64 +3,58 @@
 var emailNotifier = new EmailPriceChangeNotifier(5000);
 var pushNotifier = new PushPriceChangeNotifier(25000); 
 
-reader.AddObserver(emailNotifier);
-reader.AddObserver(pushNotifier);
+reader.SubscribersEvent += emailNotifier.Update;
+reader.SubscribersEvent += pushNotifier.Update;
 
 Enumerable.Repeat(0,10).ToList().ForEach(x => reader.ReadCurrentPrice());
 
+void SomeMethod(decimal number)
+{
+    Console.WriteLine(number);
+}
 
-class BitcoinPriceReader() : IObserver<decimal>
+class BitcoinPriceReader()
 {
     private decimal _currentBitcoinPrice;
-    private readonly ICollection<IObservable<decimal>> _observers = new List<IObservable<decimal>>();
+    public event EventHandler<PriceReadEventArgs>? SubscribersEvent;
     
     public void ReadCurrentPrice()
     {
         _currentBitcoinPrice = new Random().Next(0, 50000);
-        NotifyObservers(_currentBitcoinPrice);
+        NotifySubscribes(_currentBitcoinPrice);
     }
-    public void NotifyObservers(decimal data)
+    public void NotifySubscribes(decimal data)
     {
-        foreach (var observer in _observers)
-            observer.Update(data);
+        SubscribersEvent?.Invoke(this, new PriceReadEventArgs(_currentBitcoinPrice));
     }
-    
-    public void AddObserver(IObservable<decimal> observer) =>
-        _observers.Add(observer);
-    
-    public void RemoveObserver(IObservable<decimal> observer) =>
-        _observers.Remove(observer);
 }
 
-class EmailPriceChangeNotifier(decimal notificationThreshold) : IObservable<decimal>
+class PriceReadEventArgs : EventArgs
 {
-    public void Update(decimal currentBitcoinPrice)
+    public decimal Price { get; }
+
+    public PriceReadEventArgs(decimal price) => Price = price;
+}
+
+class EmailPriceChangeNotifier(decimal notificationThreshold)
+{
+    public void Update(object? sender, PriceReadEventArgs eventArgs)
     {
-        if (currentBitcoinPrice > notificationThreshold)
+        if (eventArgs.Price > notificationThreshold)
         {
-            Console.WriteLine($"Sending mail, threshold = {notificationThreshold}, price = {currentBitcoinPrice} ");
+            Console.WriteLine($"Sending mail, threshold = {notificationThreshold}," +
+                              $" price = {eventArgs.Price} ");
         }
     }
 }
-class PushPriceChangeNotifier(decimal notificationThreshold) : IObservable<decimal>
+class PushPriceChangeNotifier(decimal notificationThreshold)
 {
-    public void Update(decimal currentBitcoinPrice)
+    public void Update(object? sender, PriceReadEventArgs eventArgs)
     {
-        if (currentBitcoinPrice > notificationThreshold)
+        if (eventArgs.Price > notificationThreshold)
         {
-            Console.WriteLine($"Sending a push notification, threshold = {notificationThreshold}, price = {currentBitcoinPrice} ");
+            Console.WriteLine($"Sending a push notification, threshold = {notificationThreshold}" +
+                              $", price = {eventArgs.Price} ");
         }
     }
-}
-
-interface IObserver<TData>
-{
-    public void NotifyObservers(TData data);
-    public void AddObserver(IObservable<TData> observer);
-    public void RemoveObserver(IObservable<TData> observer);
-}
-
-interface IObservable<TData>
-{
-    public void Update(TData data);
 }
